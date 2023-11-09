@@ -1,21 +1,23 @@
-#Imports
-import customtkinter
-import sys
-from PIL import Image
-import os
+# Built-in Imports
 from functools import partial
+import os
 from random import shuffle
+from sys import exit
+from time import time
 
 
-customtkinter.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
-customtkinter.set_default_color_theme("blue")  # Themes: "blue" (standard), "green", "dark-blue"
+# 3rd-party Imports
+import customtkinter
+from PIL import Image
 
 
 class App(customtkinter.CTk):
-    width = 1000
-    height = 850
+    # The flag the user is currently guessing
     flag_counter = 1
+    # The number of flags the user has correctly guessed
+    user_score = 0
 
+    # Dictionary maps each country name to the image file with its respective flag
     country_flags = [
         {"country_name": "afghanistan", "img_file_name": "af.png"},
         {"country_name": "albania", "img_file_name": "al.png"},
@@ -214,58 +216,121 @@ class App(customtkinter.CTk):
         {"country_name": "zimbabwe", "img_file_name": "zw.png"}
     ]
 
+    # Randomize the order in which the flags are sorted
     shuffle(country_flags)
 
     def __init__(self):
         super().__init__()
 
-        # configure window
-        self.title(sys.argv[0])
-        self.geometry(f"{self.width}x{self.height}")
+        # Start timer when user opens the game
+        self.start = time()
+
+        # Configure window
+        self.title("Flag Guessing Game")
+        self.geometry(f"{self.winfo_screenwidth()}x{self.winfo_screenheight()}")
+        self.resizable(False, False)
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
+        # Generate the background_frame
         self.background_frame = customtkinter.CTkFrame(self, fg_color="cyan", corner_radius=0)
         self.background_frame.grid(padx=0, pady=0, sticky="nsew")
-        self.background_frame.grid_rowconfigure((0, 1, 2, 3, 4), weight=1)
-        self.background_frame.grid_columnconfigure(0, weight=1)
+        self.background_frame.grid_rowconfigure((0, 1, 2, 3, 4, 5, 6, 7, 8), weight=1)
+        self.background_frame.grid_columnconfigure((0, 1, 2), weight=1)
 
-        self.flag_counter_label = customtkinter.CTkLabel(self.background_frame, text=f"Flag {self.flag_counter}", font=("arial", 32))
-        self.flag_counter_label.grid(row=1, column=0, padx=20, pady=20)
+        # Widgets shown on question pages
+        self.flag_counter_label = customtkinter.CTkLabel(self.background_frame, text=f"Flag {self.flag_counter}", font=("arial", 56))
+        self.flag_counter_label.grid(row=1, column=1, padx=20, pady=20)
 
         self.image_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "country_flag_images")
 
         self.current_flag = self.country_flags[0]["img_file_name"]
+        self.current_country = self.country_flags[0]["country_name"]
 
         self.flag_image = customtkinter.CTkImage(Image.open(os.path.join(self.image_path, self.current_flag)), size=(400, 240))
 
         self.image_label = customtkinter.CTkLabel(self.background_frame, text="", image=self.flag_image)
-        self.image_label.grid(row=2, column=0, padx=20, pady=20)
+        self.image_label.grid(row=4, column=1, padx=20, pady=20)
+
+        self.answer_textbox = customtkinter.CTkEntry(self.background_frame, placeholder_text="Enter country name here",
+                                                     font=("arial", 32), width=400, height=80)
+        self.answer_textbox.grid(row=6, column=1, padx=20, pady=20)
 
         self.next_button = customtkinter.CTkButton(self.background_frame, text="Next", font=("arial", 32), width=400, height=80,
-                                                   command=partial(self.next_image, self.country_flags))
-        self.next_button.grid(row=3, column=0, padx=20, pady=20)
+                                                   command=partial(self.next_question, self.country_flags))
+        self.next_button.grid(row=7, column=1, padx=20, pady=20)
+
+        self.exit_button = customtkinter.CTkButton(self.background_frame, text="Exit", font=("arial", 32), width=200, height=80, command=exit)
+        self.exit_button.grid(row=7, column=2, padx=20, pady=20)
+
+        # This button is used to make everything appear centered - it's hidden and serves no other purpose
+        self.useless_button = customtkinter.CTkButton(self.background_frame, fg_color="transparent", hover="false", text="", width=200, height=80)
+        self.useless_button.grid(row=7, column=0, padx=20, pady=20)
 
 
-    def next_image(self, country_flags):
+    # This method generates the next frame a new flag + validates the user's answer and updates relevant variables
+    def next_question(self, country_flags):
 
+        # Reformat user's answer to match format of the dictionary - if it matches, increase score by 1
+        if self.current_country == self.answer_textbox.get().lower().strip():
+            self.user_score += 1
+
+        # Flag to see if the current image file is being displayed
         flags_match = False
 
+        # Iterate through list of dictionaries until the image file matches the current flag -> Next one contains the next flag + country
         for d in country_flags:
             if d["img_file_name"] == self.current_flag:
                 flags_match = True
                 continue
             if flags_match:
                 self.current_flag = d["img_file_name"]
+                self.current_country = d["country_name"]
                 self.flag_counter += 1
                 break
 
+        # Updates flag number at the top
         self.flag_counter_label.configure(text=f"Flag {self.flag_counter}")
 
-        self.flag_image = customtkinter.CTkImage(Image.open(os.path.join(self.image_path, self.current_flag)), size=(400, 240))
+        # Deletes previous answer from textbox
+        self.answer_textbox.delete(0, len(self.answer_textbox.get()))
 
+        # Changes image to next flag
+        self.flag_image = customtkinter.CTkImage(Image.open(os.path.join(self.image_path, self.current_flag)), size=(400, 240))
         self.image_label = customtkinter.CTkLabel(self.background_frame, text="", image=self.flag_image)
-        self.image_label.grid(row=2, column=0, padx=20, pady=20)
+        self.image_label.grid(row=4, column=1, padx=20, pady=20)
+
+        # Allows user to trigger event to generate end screen after they guess all 195 flags
+        if self.flag_counter == 195:
+            self.next_button.configure(text="Submit Final Answer", command=self.generate_end_page)
+
+
+    # Generates the final page
+    def generate_end_page(self):
+        # End timer after the user inputs all answers
+        end = time()
+
+        # Erase previous frame + widgets
+        self.background_frame.grid_forget()
+
+        # Change appearance mode for end screen only
+        customtkinter.set_appearance_mode("Dark")
+
+        # Create new frame for end screen
+        self.end_screen_frame = customtkinter.CTkFrame(self, corner_radius=0)
+        self.end_screen_frame.grid(row=0, column=0, sticky="nsew")
+        self.end_screen_frame.grid_rowconfigure((0, 1, 2, 3, 4, 5, 6), weight=1)
+        self.end_screen_frame.grid_columnconfigure(0, weight=1)
+
+        # Widgets containing player stats
+        self.final_score_label =  customtkinter.CTkLabel(self.end_screen_frame, text=f"You guessed {self.user_score}/195 flags correctly.", font=("arial", 32))
+        self.final_score_label.grid(row=1, column=0, padx=20, pady=20)
+        self.time_elapsed_label = customtkinter.CTkLabel(self.end_screen_frame, text=f"It took you {end - self.start:.2f}s to complete the game.", font=("arial", 32))
+        self.time_elapsed_label.grid(row=2, column=0, padx=20, pady=20)
+
+        # Button to close program
+        self.exit_button = customtkinter.CTkButton(self.end_screen_frame, text="Exit", font=("arial", 32), width=200, height=80, command=exit)
+        self.exit_button.grid(row=5, column=0, padx=20, pady=20)
 
 
 if __name__ == "__main__":
@@ -273,5 +338,4 @@ if __name__ == "__main__":
     app.mainloop()
 
 
-#customtkinter.set_appearance_mode(new_appearance_mode)
 #Time elapsed: 171:14.50
