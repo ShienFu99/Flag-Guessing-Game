@@ -216,6 +216,8 @@ class App(customtkinter.CTk):
         {"country_name": "zimbabwe", "img_file_name": "zw.png"}
     ]
 
+    incorrect_guesses = []
+
     # Randomize the order in which the flags are sorted
     shuffle(country_flags)
 
@@ -233,7 +235,7 @@ class App(customtkinter.CTk):
         self.grid_columnconfigure(0, weight=1)
 
         # Generate the background_frame
-        self.background_frame = customtkinter.CTkFrame(self, fg_color="cyan", corner_radius=0)
+        self.background_frame = customtkinter.CTkFrame(self, fg_color="#93D6B4", corner_radius=0)
         self.background_frame.grid(padx=0, pady=0, sticky="nsew")
         self.background_frame.grid_rowconfigure((0, 1, 2, 3, 4, 5, 6, 7, 8), weight=1)
         self.background_frame.grid_columnconfigure((0, 1, 2), weight=1)
@@ -271,9 +273,12 @@ class App(customtkinter.CTk):
     # This method generates the next frame a new flag + validates the user's answer and updates relevant variables
     def next_question(self, country_flags):
 
-        # Reformat user's answer to match format of the dictionary - if it matches, increase score by 1
+        # If user's answer matches the flag shown, increase their score by 1
         if self.current_country == self.answer_textbox.get().lower().strip():
             self.user_score += 1
+        else:
+            # If they guessed incorrectly, save relevant info for reviewing
+            self.incorrect_guesses.append(dict(country_name = self.current_country, img_file_name = self.current_flag, user_mistake = self.answer_textbox.get().lower().strip()))
 
         # Flag to see if the current image file is being displayed
         flags_match = False
@@ -292,8 +297,9 @@ class App(customtkinter.CTk):
         # Updates flag number at the top
         self.flag_counter_label.configure(text=f"Flag {self.flag_counter}")
 
-        # Deletes previous answer from textbox
-        self.answer_textbox.delete(0, len(self.answer_textbox.get()))
+        # If the user typed in an answer, deletes previous answer from textbox - if-statement prevents a bug with final answer submission
+        if self.answer_textbox.get().lower().strip() != "":
+            self.answer_textbox.delete(0, len(self.answer_textbox.get()))
 
         # Changes image to next flag
         self.flag_image = customtkinter.CTkImage(Image.open(os.path.join(self.image_path, self.current_flag)), size=(400, 240))
@@ -301,12 +307,19 @@ class App(customtkinter.CTk):
         self.image_label.grid(row=4, column=1, padx=20, pady=20)
 
         # Allows user to trigger event to generate end screen after they guess all 195 flags
-        if self.flag_counter == 195:
+        if self.flag_counter == len(country_flags):
             self.next_button.configure(text="Submit Final Answer", command=self.generate_end_page)
 
 
-    # Generates the final page
+    # Generates the end page - shows user stats
     def generate_end_page(self):
+        # Validate user's final answer
+        if self.current_country == self.answer_textbox.get().lower().strip():
+            self.user_score += 1
+        else:
+            # If they guessed incorrectly, save relevant info for reviewing
+            self.incorrect_guesses.append(dict(country_name = self.current_country, img_file_name = self.current_flag, user_mistake = self.answer_textbox.get().lower().strip()))
+
         # End timer after the user inputs all answers
         end = time()
 
@@ -320,17 +333,120 @@ class App(customtkinter.CTk):
         self.end_screen_frame = customtkinter.CTkFrame(self, corner_radius=0)
         self.end_screen_frame.grid(row=0, column=0, sticky="nsew")
         self.end_screen_frame.grid_rowconfigure((0, 1, 2, 3, 4, 5, 6), weight=1)
-        self.end_screen_frame.grid_columnconfigure(0, weight=1)
+        self.end_screen_frame.grid_columnconfigure((0, 1, 2), weight=1)
 
         # Widgets containing player stats
         self.final_score_label =  customtkinter.CTkLabel(self.end_screen_frame, text=f"You guessed {self.user_score}/195 flags correctly.", font=("arial", 32))
-        self.final_score_label.grid(row=1, column=0, padx=20, pady=20)
+        self.final_score_label.grid(row=1, column=1, padx=20, pady=20)
         self.time_elapsed_label = customtkinter.CTkLabel(self.end_screen_frame, text=f"It took you {end - self.start:.2f}s to complete the game.", font=("arial", 32))
-        self.time_elapsed_label.grid(row=2, column=0, padx=20, pady=20)
+        self.time_elapsed_label.grid(row=2, column=1, padx=20, pady=20)
+
+        # Button to review mistakes
+        self.review_button = customtkinter.CTkButton(self.end_screen_frame, text="Review Mistakes", font=("arial", 32), width=200, height=80, command=self.generate_error_review)
+        self.review_button.grid(row=5, column=0, padx=20, pady=20)
 
         # Button to close program
         self.exit_button = customtkinter.CTkButton(self.end_screen_frame, text="Exit", font=("arial", 32), width=200, height=80, command=exit)
-        self.exit_button.grid(row=5, column=0, padx=20, pady=20)
+        self.exit_button.grid(row=5, column=2, padx=20, pady=20)
+
+
+    # Generates first review page
+    def generate_error_review(self):
+        # Initialize mistake_counter with a value of 1 -> used for label
+        self.mistake_counter = 1
+
+        # Delete previous frame + widgets
+        self.end_screen_frame.grid_forget()
+
+        # Reset appearance mode to light mode
+        customtkinter.set_appearance_mode("light")
+
+        # Generate the background_frame
+        self.background_frame = customtkinter.CTkFrame(self, fg_color="#F8A6E7", corner_radius=0)
+        self.background_frame.grid(padx=0, pady=0, sticky="nsew")
+        self.background_frame.grid_rowconfigure((0, 1, 2, 3, 4, 5, 6, 7, 8), weight=1)
+        self.background_frame.grid_columnconfigure((0, 1, 2), weight=1)
+
+        # If user made no incorrect guesses, generate special page when they press the review button
+        if not len(self.incorrect_guesses):
+            self.no_errors_label = customtkinter.CTkLabel(self.background_frame, text="You have no enemies.", font=("arial", 56), text_color="black")
+            self.no_errors_label.grid(row=3, column=1, padx=20, pady=20)
+
+            self.exit_button = customtkinter.CTkButton(self.background_frame, text="Exit", font=("arial", 32), width=200, height=80, command=exit)
+            self.exit_button.grid(row=6, column=1, padx=20, pady=20)
+        # If the user did make mistakes, generate a window that shows the flags of the countries they incorrectly guessed + the correct answers
+        else:
+            # Label displays which mistake is being reviewed
+            self.mistake_counter_label = customtkinter.CTkLabel(self.background_frame, text=f"Mistake {self.mistake_counter}", font=("arial", 56))
+            self.mistake_counter_label.grid(row=1, column=1, padx=20, pady=20)
+
+            self.image_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "country_flag_images")
+
+            # Initializes variables to match the values of the first incorrect guess
+            self.misguessed_flag = self.incorrect_guesses[0]["img_file_name"]
+            self.misguessed_country = self.incorrect_guesses[0]["country_name"]
+            self.user_guess = self.incorrect_guesses[0]["user_mistake"]
+
+            # Open the first flag image
+            self.flag_image = customtkinter.CTkImage(Image.open(os.path.join(self.image_path, self.misguessed_flag)), size=(400, 240))
+
+            self.image_label = customtkinter.CTkLabel(self.background_frame, text="", image=self.flag_image)
+            self.image_label.grid(row=4, column=1, padx=20, pady=20)
+
+            # Displays the correct answer
+            self.correct_country_label = customtkinter.CTkLabel(self.background_frame, text=f"Country: {self.misguessed_country.title()}", font=("arial", 40), anchor="w")
+            self.correct_country_label.grid(row=5, column=1, padx=20, pady=20)
+
+            # Displays the user's guess
+            self.user_guess_label = customtkinter.CTkLabel(self.background_frame, text=f"You guessed: {self.user_guess}", font=("arial", 40), anchor="w")
+            self.user_guess_label.grid(row=6, column=1, padx=20, pady=20)
+
+            # Buttons used to navigate other mistakes
+            self.next_button = customtkinter.CTkButton(self.background_frame, text="Next", font=("arial", 32), width=400, height=80,
+                                                    command=partial(self.next_review, self.incorrect_guesses))
+            self.next_button.grid(row=7, column=1, padx=20, pady=20)
+
+            # Exits program
+            self.exit_button = customtkinter.CTkButton(self.background_frame, text="Exit", font=("arial", 32), width=200, height=80, command=exit)
+            self.exit_button.grid(row=7, column=2, padx=20, pady=20)
+
+            # Useless button used to format page - has no function
+            self.useless_button = customtkinter.CTkButton(self.background_frame, fg_color="transparent", hover="false", text="", width=200, height=80)
+            self.useless_button.grid(row=7, column=0, padx=20, pady=20)
+
+
+    def next_review(self, incorrect_guesses):
+        # Flag to see if the current image file is being displayed
+        flags_match = False
+
+        # Iterate through list of dictionaries until the image file matches the current flag -> Next one contains the next flag + country
+        for d in incorrect_guesses:
+            if d["img_file_name"] == self.misguessed_flag:
+                flags_match = True
+                continue
+            if flags_match:
+                self.misguessed_flag = d["img_file_name"]
+                self.misguessed_country = d["country_name"]
+                self.user_guess = d["user_mistake"]
+                self.mistake_counter += 1
+                break
+
+        # Updates flag number at the top
+        self.mistake_counter_label.configure(text=f"Mistake {self.mistake_counter}")
+
+        self.correct_country_label.configure(text=f"Country: {self.misguessed_country.title()}")
+        self.user_guess_label.configure(text=f"You guessed: {self.user_guess}")
+
+        # Changes image to next flag
+        self.flag_image = customtkinter.CTkImage(Image.open(os.path.join(self.image_path, self.misguessed_flag)), size=(400, 240))
+        self.image_label = customtkinter.CTkLabel(self.background_frame, text="", image=self.flag_image)
+        self.image_label.grid(row=4, column=1, padx=20, pady=20)
+
+        # Allows user to trigger event to generate end screen after they guess all 195 flags
+        if self.mistake_counter == len(incorrect_guesses):
+            self.exit_button.grid_forget()
+            self.useless_button.grid_forget()
+            self.next_button.configure(text="Exit", command=exit)
 
 
 if __name__ == "__main__":
